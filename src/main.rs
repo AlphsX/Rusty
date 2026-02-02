@@ -48,6 +48,7 @@ struct StreamChunk {
 struct StreamChoice {
     delta: Delta,
     #[serde(default)]
+    #[allow(dead_code)] // Fixes "field is never read" warning
     finish_reason: Option<String>,
 }
 
@@ -69,18 +70,22 @@ fn load_api_key() -> Result<String, String> {
     if let Ok(key) = std::env::var("GROQ_API_KEY") {
         return Ok(key);
     }
-    
+
     Err("GROQ_API_KEY not found in .env file.".to_string())
 }
 
 fn save_api_key(key: &str) -> Result<(), String> {
     let path = get_config_path();
     let env_content = format!("GROQ_API_KEY={}", key.trim());
-    fs::write(&path, env_content)
-        .map_err(|e| format!("Failed to write API key: {}", e))
+    fs::write(&path, env_content).map_err(|e| format!("Failed to write API key: {}", e))
 }
 
-async fn chat_completion(api_key: &str, model: &str, messages: &[Message], stream: bool) -> Result<String, reqwest::Error> {
+async fn chat_completion(
+    api_key: &str,
+    model: &str,
+    messages: &[Message],
+    stream: bool,
+) -> Result<String, reqwest::Error> {
     let client = reqwest::Client::new();
 
     if stream {
@@ -136,7 +141,11 @@ async fn chat_completion(api_key: &str, model: &str, messages: &[Message], strea
             .await?;
 
         let chat_response: ChatResponse = response.json().await?;
-        Ok(chat_response.choices.first().map(|c| c.message.content.clone()).unwrap_or_default())
+        Ok(chat_response
+            .choices
+            .first()
+            .map(|c| c.message.content.clone())
+            .unwrap_or_default())
     }
 }
 
@@ -172,7 +181,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 print!("Enter your GroqCloud API key: ");
                 io::stdout().flush().unwrap();
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).expect("Failed to read input");
+                io::stdin()
+                    .read_line(&mut input)
+                    .expect("Failed to read input");
                 let key = input.trim().to_string();
                 if !key.is_empty() {
                     save_api_key(&key).map_err(|e| format!("Failed to save API key: {}", e))?;
@@ -184,28 +195,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     list_models();
 
-    // let mut selected_model = String::new();
-    let mut selected_model = MODELS[0].to_string();
     println!("Select a model (1-3) or press Enter for default [1]: ");
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
     let choice = input.trim();
-    match choice {
-        "1" | "" => selected_model = MODELS[0].to_string(),
-        "2" => selected_model = MODELS[1].to_string(),
-        "3" => selected_model = MODELS[2].to_string(),
+
+    // Fixes "value assigned is never read" warning by initializing directly from match
+    let mut selected_model = match choice {
+        "1" | "" => MODELS[0].to_string(),
+        "2" => MODELS[1].to_string(),
+        "3" => MODELS[2].to_string(),
         _ => {
             println!("Invalid choice. Using default model.");
-            selected_model = MODELS[0].to_string();
+            MODELS[0].to_string()
         }
-    }
+    };
 
     println!("\nUsing model: {}\n", selected_model);
     println!("Type your message and press Enter.");
     println!("Commands: /quit, /stream, /clear, /model\n");
 
     let mut messages: Vec<Message> = Vec::new();
-    let mut stream_mode = false; 
+    let mut stream_mode = false;
 
     // Main Chat Loop
     loop {
@@ -215,8 +226,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // let stdin = io::stdin();
         let mut reader = tokio::io::BufReader::new(tokio::io::stdin());
         let mut line = String::new();
-        
-        // Async reader 
+
+        // Async reader
         reader.read_line(&mut line).await?;
 
         let trimmed = line.trim();
@@ -288,7 +299,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 eprintln!("\nError: {}", e);
-                messages.pop(); 
+                messages.pop();
             }
         }
     }
