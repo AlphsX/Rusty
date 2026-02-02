@@ -1114,7 +1114,7 @@ Committed to creating high-quality developer tools that enhance productivity and
 
 - **GitHub**: [@AlphsX](https://github.com/AlphsX)
 - **YouTube**: [@AccioLabsX](https://www.youtube.com/channel/UCNn7PEFI65qIkR2bbK3yveQ)
-- **Project Repository**: [rusty-cli](https://github.com/AlphsX/rusty-cli)
+- **Project Repository**: [Rusty](https://github.com/AlphsX/Rusty.git)
 
 ### Acknowledgments
 
