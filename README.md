@@ -3,7 +3,7 @@
 
 # Rusty CLI 🦀✨
 
-**A blazing-fast, interactive CLI chatbot powered by GroqCloud AI and built with Rust.**
+### _A blazing-fast, interactive CLI chatbot powered by GroqCloud AI and built with Rust._
 
 Experience lightning-speed AI conversations directly from your terminal
 
@@ -155,6 +155,7 @@ The binary will be available at `target/release/rusty-cli`.
 ### First Run
 
 1. **Launch the application**
+
    ```bash
    cargo run --release
    ```
@@ -164,6 +165,7 @@ The binary will be available at `target/release/rusty-cli`.
    - Get your key at [GroqCloud Console](https://console.groq.com)
 
 3. **Select your preferred model** (or press Enter for default)
+
    ```
    [1] openai/gpt-oss-120b (default)
    [2] meta-llama/llama-4-maverick-17b-128e-instruct
@@ -238,6 +240,7 @@ Best for: Code generation, technical explanations, creative writing
 ```
 
 **Characteristics:**
+
 - Largest parameter count for maximum capability
 - Excellent at complex reasoning and problem-solving
 - Strong performance across all domains
@@ -253,6 +256,7 @@ Best for: Quick queries, code assistance, conversational AI
 ```
 
 **Characteristics:**
+
 - Mixture-of-Experts architecture for efficiency
 - Faster response times with lower latency
 - Excellent instruction-following capabilities
@@ -267,6 +271,7 @@ Best for: Bilingual conversations, creative writing, detailed analysis
 ```
 
 **Characteristics:**
+
 - Native Chinese and English support
 - Strong creative and analytical capabilities
 - Detailed, thorough responses
@@ -274,32 +279,33 @@ Best for: Bilingual conversations, creative writing, detailed analysis
 
 ### Model Selection Guide
 
-| Use Case                    | Recommended Model     |
-| --------------------------- | --------------------- |
-| Code generation             | GPT-OSS-120B          |
-| Quick answers               | Llama 4 Maverick      |
-| Creative writing            | Kimi K2 / GPT-OSS-120B |
-| Technical explanations      | GPT-OSS-120B          |
-| Bilingual conversations     | Kimi K2               |
-| Real-time interactions      | Llama 4 Maverick      |
-| Complex problem-solving     | GPT-OSS-120B          |
-| General conversation        | Llama 4 Maverick      |
+| Use Case                | Recommended Model      |
+| ----------------------- | ---------------------- |
+| Code generation         | GPT-OSS-120B           |
+| Quick answers           | Llama 4 Maverick       |
+| Creative writing        | Kimi K2 / GPT-OSS-120B |
+| Technical explanations  | GPT-OSS-120B           |
+| Bilingual conversations | Kimi K2                |
+| Real-time interactions  | Llama 4 Maverick       |
+| Complex problem-solving | GPT-OSS-120B           |
+| General conversation    | Llama 4 Maverick       |
 
 ## Commands
 
 Rusty CLI provides a comprehensive set of commands for controlling the chat experience:
 
-| Command      | Aliases       | Description                               |
-| ------------ | ------------- | ----------------------------------------- |
-| `/quit`      | `/exit`       | Exit the application                      |
-| `/stream`    | -             | Toggle streaming mode on/off              |
-| `/clear`     | -             | Clear conversation history                |
-| `/model`     | -             | Change the current AI model               |
-| `/help`      | -             | Display available commands                |
+| Command   | Aliases | Description                  |
+| --------- | ------- | ---------------------------- |
+| `/quit`   | `/exit` | Exit the application         |
+| `/stream` | -       | Toggle streaming mode on/off |
+| `/clear`  | -       | Clear conversation history   |
+| `/model`  | -       | Change the current AI model  |
+| `/help`   | -       | Display available commands   |
 
 ### Command Details
 
 #### /quit or /exit
+
 Gracefully exits the application, displaying a farewell message.
 
 ```bash
@@ -308,6 +314,7 @@ Goodbye! 🦀
 ```
 
 #### /stream
+
 Toggles between streaming and non-streaming response modes.
 
 ```bash
@@ -319,10 +326,12 @@ Streaming mode: OFF
 ```
 
 **Streaming Mode:**
+
 - **ON**: Tokens appear in real-time as the AI generates them
 - **OFF**: Complete response appears after generation finishes
 
 #### /clear
+
 Removes all messages from the conversation history, starting fresh.
 
 ```bash
@@ -331,12 +340,14 @@ Conversation cleared.
 ```
 
 **Use cases:**
+
 - Starting a new topic
 - Reducing context length
 - Privacy: clearing sensitive information
 - Testing different conversation flows
 
 #### /model
+
 Interactive model selection dialog.
 
 ```bash
@@ -350,11 +361,13 @@ Select a model (1-3): 1
 ```
 
 **Notes:**
+
 - Model changes take effect immediately
 - Conversation history is preserved across model changes
 - Invalid selections are rejected with a helpful message
 
 #### /help
+
 Displays a summary of all available commands.
 
 ```bash
@@ -514,6 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **Benefits:**
+
 - Non-blocking network operations
 - Efficient resource utilization
 - Smooth user experience
@@ -570,13 +584,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Key Technologies
 
-| Technology      | Purpose                                    |
-| --------------- | ------------------------------------------ |
-| **Tokio**       | Async runtime for non-blocking I/O         |
-| **Reqwest**     | HTTP client for API communication          |
-| **Serde**       | JSON serialization/deserialization         |
-| **Serde JSON**  | JSON data handling                         |
-| **Dotenv**      | Environment variable management            |
+| Technology     | Purpose                            |
+| -------------- | ---------------------------------- |
+| **Tokio**      | Async runtime for non-blocking I/O |
+| **Reqwest**    | HTTP client for API communication  |
+| **Serde**      | JSON serialization/deserialization |
+| **Serde JSON** | JSON data handling                 |
+| **Dotenv**     | Environment variable management    |
 
 ### Dependencies
 
@@ -595,20 +609,21 @@ dotenv = "0.15"
 
 Rusty CLI is designed for speed. Here are typical performance metrics:
 
-| Metric                     | Value              |
-| -------------------------- | ------------------ |
-| Cold start time            | < 50ms             |
-| API request overhead       | < 10ms             |
-| Token streaming latency    | < 5ms per token    |
-| Memory footprint           | ~5-10MB            |
-| Binary size (release)      | ~8MB               |
-| Conversation history limit | Unlimited*         |
+| Metric                     | Value           |
+| -------------------------- | --------------- |
+| Cold start time            | < 50ms          |
+| API request overhead       | < 10ms          |
+| Token streaming latency    | < 5ms per token |
+| Memory footprint           | ~5-10MB         |
+| Binary size (release)      | ~8MB            |
+| Conversation history limit | Unlimited\*     |
 
-*Limited only by available memory and API context windows
+\*Limited only by available memory and API context windows
 
 ### Optimization Techniques
 
 #### 1. Async I/O
+
 Non-blocking operations ensure the CLI remains responsive even during network requests.
 
 ```rust
@@ -620,6 +635,7 @@ let response = client.post(GROQ_API_URL)
 ```
 
 #### 2. Release Builds
+
 Production builds use aggressive optimizations:
 
 ```bash
@@ -627,12 +643,14 @@ cargo build --release
 ```
 
 Optimizations include:
+
 - Link-time optimization (LTO)
 - Code generation optimization
 - Dead code elimination
 - Inline expansion
 
 #### 3. Streaming Architecture
+
 Token-by-token streaming reduces perceived latency:
 
 ```rust
@@ -644,6 +662,7 @@ while let Some(chunk) = response.chunk().await? {
 ```
 
 #### 4. Memory Efficiency
+
 - Stack allocation for hot paths
 - Minimal heap allocations
 - Efficient string handling
@@ -652,12 +671,14 @@ while let Some(chunk) = response.chunk().await? {
 ### Performance Tips
 
 **For Users:**
+
 - Use release builds for production (`cargo build --release`)
 - Enable streaming mode for faster perceived response times
 - Clear conversation history periodically for long sessions
 - Use Llama 4 Maverick for fastest responses
 
 **For Developers:**
+
 - Profile with `cargo flamegraph` to identify hotspots
 - Use `cargo-bloat` to analyze binary size
 - Enable LTO in `Cargo.toml` for maximum optimization
@@ -668,17 +689,20 @@ while let Some(chunk) = response.chunk().await? {
 ### Setting Up Development Environment
 
 1. **Install Rust**
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. **Clone Repository**
+
    ```bash
    git clone https://github.com/AlphsX/rusty-cli.git
    cd rusty-cli
    ```
 
 3. **Install Dependencies**
+
    ```bash
    cargo build
    ```
@@ -821,16 +845,19 @@ RUST_LOG=debug cargo run
 #### Common Issues
 
 **Issue: API key not found**
+
 ```
 Solution: Ensure .env file exists with GROQ_API_KEY=your_key
 ```
 
 **Issue: Connection timeout**
+
 ```
 Solution: Check internet connection and API endpoint availability
 ```
 
 **Issue: Compilation errors**
+
 ```
 Solution: Update Rust toolchain with `rustup update`
 ```
@@ -947,6 +974,7 @@ Contributions are welcome! Rusty CLI is an open-source project and benefits from
 ### How to Contribute
 
 1. **Fork the Repository**
+
    ```bash
    # Fork on GitHub, then clone
    git clone https://github.com/yourusername/rusty-cli.git
@@ -954,6 +982,7 @@ Contributions are welcome! Rusty CLI is an open-source project and benefits from
    ```
 
 2. **Create a Branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -965,6 +994,7 @@ Contributions are welcome! Rusty CLI is an open-source project and benefits from
    - Update documentation as needed
 
 4. **Test Your Changes**
+
    ```bash
    cargo test
    cargo clippy
@@ -972,6 +1002,7 @@ Contributions are welcome! Rusty CLI is an open-source project and benefits from
    ```
 
 5. **Commit Your Changes**
+
    ```bash
    git add .
    git commit -m "feat: add your feature description"
