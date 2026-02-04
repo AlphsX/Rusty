@@ -1003,7 +1003,7 @@ impl ChatApplication {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     let api_key = ConfigManager::get_or_prompt_api_key();
     let mut app = ChatApplication::new(api_key);
