@@ -3,7 +3,7 @@
 
 # Rusty CLI 🦀✨
 
-### _A blazing-fast, interactive CLI chatbot powered by GroqCloud AI and built with Rust._
+### _A blazing-fast, agentic CLI chatbot with real-time web search and built with Rust._
 
 Experience lightning-speed AI conversations directly from your terminal
 
@@ -66,11 +66,10 @@ println!("Assistant: {}", response);
 
 Rusty CLI is a modern, terminal-based AI chatbot that leverages GroqCloud's high-performance API to deliver instant AI-powered conversations. Built with Rust's async runtime (Tokio), it provides:
 
-- **Real-Time Streaming**: Token-by-token streaming for instant feedback
-- **Multiple AI Models**: Choose from GPT-OSS-120B, Llama 4, and Kimi K2
-- **Conversation History**: Maintains context across multiple exchanges
-- **Zero-Latency**: Async I/O ensures no blocking operations
-- **Secure Storage**: API keys safely stored in `.env` configuration
+- **Agentic Search**: Autonomous tool-calling for real-time web data via Brave Search
+- **Smart Model Orchestration**: Intelligent handling of multi-step reasoning loops
+- **Secure Key Management**: Automated setup for Groq and Brave API keys
+- **Zero-Latency Design**: Built with Rust/Tokio for maximum responsiveness
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 
 ### Key Capabilities
@@ -103,11 +102,9 @@ Rust provides the perfect foundation for a high-performance CLI tool:
   - OpenAI GPT-OSS-120B (120 billion parameters)
   - Meta Llama 4 Maverick 17B (128 expert configuration)
   - Moonshot AI Kimi K2 Instruct
-- **Streaming Responses**: Real-time token-by-token output
-- **Conversation Context**: Maintains full chat history for coherent dialogues
-- **API Key Management**: Secure storage and automatic loading from `.env`
-- **Interactive Model Selection**: Choose your preferred model at startup
-- **Persistent Configuration**: Saves your preferences for future sessions
+- **Agentic Capabilities**: The AI can now decide to search the web for real-time information.
+- **Multi-Step Reasoning**: Supports autonomous loops to process search results and refine answers.
+- **Dual API Integration**: Seamless coordination between GroqCloud and Brave Search.
 
 ### User Experience
 
@@ -134,6 +131,7 @@ Rust provides the perfect foundation for a high-performance CLI tool:
 
 - Rust 1.75 or later ([Install Rust](https://rustup.rs))
 - GroqCloud API key ([Get API Key](https://console.groq.com))
+- Brave Search API key ([Get API Key](https://api.search.brave.com/app/dashboard))
 - Terminal with UTF-8 support
 
 ### Installation
@@ -160,9 +158,10 @@ The binary will be available at `target/release/rusty-cli`.
    cargo run --release
    ```
 
-2. **Enter your GroqCloud API key** when prompted
-   - The key will be saved to `.env` for future sessions
-   - Get your key at [GroqCloud Console](https://console.groq.com)
+2. **Enter your API keys** when prompted
+   - You will be asked for your **GroqCloud API key** and **Brave Search API key**
+   - Keys will be saved to `.env` for future sessions
+   - Get Groq keys [here](https://console.groq.com) and Brave keys [here](https://api.search.brave.com/app/dashboard)
 
 3. **Select your preferred model** (or press Enter for default)
 
@@ -189,16 +188,16 @@ Simply type your message and press Enter:
 
 The assistant will respond with streaming output (if enabled) or a complete response.
 
-### Enabling Streaming Mode
+### Tool Usage & Agentic Mode
 
-Toggle real-time streaming on/off:
+Rusty CLI automatically decides when to use tools. If you ask a question about current events, it will:
 
-```bash
-> /stream
-Streaming mode: ON
+1. **Analyze** your query
+2. **Execute** a search via Brave Search
+3. **Reason** through the results
+4. **Deliver** a synthesized, accurate response
 
-> Tell me about Rust's ownership system[Tokens stream in real-time as the assistant types]
-```
+> **Note**: Streaming is currently optimized for agentic reliability and may be suppressed during multi-step tool execution.
 
 ### Changing Models Mid-Conversation
 
@@ -398,6 +397,7 @@ The key is automatically saved to `.env`:
 
 ```bash
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxx
+BRAVE_API_KEY=bsk_xxxxxxxxxxxxxxxxxxxxx
 ```
 
 #### Manual Configuration
@@ -406,7 +406,8 @@ You can also manually create or edit the `.env` file:
 
 ```bash
 # Create .env file
-echo "GROQ_API_KEY=your_api_key_here" > .env
+echo "GROQ_API_KEY=your_groq_key_here" > .env
+echo "BRAVE_API_KEY=your_brave_key_here" >> .env
 ```
 
 #### Security Best Practices

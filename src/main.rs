@@ -26,14 +26,35 @@ const MODELS: &[&str] = &[
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Message {
     role: String,
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_call_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ToolCall {
+    id: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    function: FunctionCall,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct FunctionCall {
+    name: String,
+    arguments: String,
 }
 
 impl Message {
     fn new(role: &str, content: &str) -> Self {
         Self {
             role: role.to_string(),
-            content: content.to_string(),
+            content: Some(content.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
         }
     }
 
@@ -44,6 +65,28 @@ impl Message {
     fn assistant(content: &str) -> Self {
         Self::new("assistant", content)
     }
+
+    fn tool(content: &str, id: &str) -> Self {
+        Self {
+            role: "tool".to_string(),
+            content: Some(content.to_string()),
+            tool_calls: None,
+            tool_call_id: Some(id.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ToolDefinition {
+    r#type: String,
+    function: ToolFunction,
+}
+
+#[derive(Debug, Serialize)]
+struct ToolFunction {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,6 +94,8 @@ struct ChatRequest {
     model: String,
     messages: Vec<Message>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<ToolDefinition>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,24 +109,6 @@ struct Choice {
 }
 
 #[derive(Debug, Deserialize)]
-struct StreamChunk {
-    choices: Vec<StreamChoice>,
-}
-
-#[derive(Debug, Deserialize)]
-struct StreamChoice {
-    delta: Delta,
-    #[serde(default)]
-    #[allow(dead_code)]
-    finish_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Delta {
-    #[serde(default)]
-    content: String,
-}
-
 // ============================================================================
 // Configuration Manager
 // ============================================================================
@@ -95,22 +122,47 @@ impl ConfigManager {
         current_dir
     }
 
-    fn load_api_key() -> Result<String, String> {
-        if let Ok(key) = std::env::var("GROQ_API_KEY") {
+    fn load_key(key_name: &str) -> Result<String, String> {
+        if let Ok(key) = std::env::var(key_name) {
             return Ok(key);
         }
-        Err("GROQ_API_KEY not found in .env file.".to_string())
+        Err(format!("{} not found in .env file.", key_name))
     }
 
-    fn save_api_key(key: &str) -> Result<(), String> {
+    fn save_key(key_name: &str, key_value: &str) -> Result<(), String> {
         let path = Self::get_config_path();
-        let env_content = format!("GROQ_API_KEY={}", key.trim());
-        fs::write(&path, env_content).map_err(|e| format!("Failed to write API key: {}", e))
+        let mut content = if path.exists() {
+            fs::read_to_string(&path).unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        let new_line = format!("{}={}", key_name, key_value.trim());
+
+        let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+        let mut found = false;
+        for line in &mut lines {
+            if line.starts_with(&format!("{}=", key_name)) {
+                *line = new_line.clone();
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            lines.push(new_line);
+        }
+
+        content = lines.join("\n");
+        if !content.ends_with('\n') && !content.is_empty() {
+            content.push('\n');
+        }
+
+        fs::write(&path, content).map_err(|e| format!("Failed to write API key: {}", e))
     }
 
-    fn prompt_for_api_key() -> Result<String, String> {
-        println!("API Key not found.");
-        print!("Enter your GroqCloud API key: ");
+    fn prompt_for_key(key_name: &str, display_name: &str) -> Result<String, String> {
+        println!("{} not found.", display_name);
+        print!("Enter your {}: ", display_name);
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
@@ -123,21 +175,101 @@ impl ConfigManager {
             return Err("Empty API key".to_string());
         }
 
-        Self::save_api_key(&key)?;
+        Self::save_key(key_name, &key)?;
         Ok(key)
     }
 
-    fn get_or_prompt_api_key() -> String {
-        loop {
-            match Self::load_api_key() {
-                Ok(key) => return key,
+    fn get_or_prompt_api_keys() -> (String, String) {
+        let groq_key = loop {
+            match Self::load_key("GROQ_API_KEY") {
+                Ok(key) => break key,
                 Err(_) => {
-                    if let Ok(key) = Self::prompt_for_api_key() {
-                        return key;
+                    if let Ok(key) = Self::prompt_for_key("GROQ_API_KEY", "GroqCloud API key") {
+                        break key;
                     }
                 }
             }
+        };
+
+        let brave_key = loop {
+            match Self::load_key("BRAVE_API_KEY") {
+                Ok(key) => break key,
+                Err(_) => {
+                    if let Ok(key) = Self::prompt_for_key("BRAVE_API_KEY", "Brave Search API key") {
+                        break key;
+                    }
+                }
+            }
+        };
+
+        (groq_key, brave_key)
+    }
+}
+
+// ============================================================================
+// Brave Search Client
+// ============================================================================
+
+struct BraveSearchClient {
+    api_key: String,
+    client: reqwest::Client,
+}
+
+impl BraveSearchClient {
+    fn new(api_key: String) -> Self {
+        Self {
+            api_key,
+            client: reqwest::Client::new(),
         }
+    }
+
+    async fn search(&self, query: &str) -> Result<String, reqwest::Error> {
+        let url = "https://api.search.brave.com/res/v1/web/search";
+        let response = self
+            .client
+            .get(url)
+            .header("X-Subscription-Token", &self.api_key)
+            .header("Accept", "application/json")
+            .query(&[("q", query), ("count", "5")])
+            .send()
+            .await?;
+
+        let json: serde_json::Value = response.json().await?;
+        Ok(self.format_results(json))
+    }
+
+    fn format_results(&self, json: serde_json::Value) -> String {
+        let mut output = String::from("### Brave Search Results\n\n");
+
+        if let Some(web) = json
+            .get("web")
+            .and_then(|w| w.get("results"))
+            .and_then(|r| r.as_array())
+        {
+            if web.is_empty() {
+                output.push_str("No results found.\n");
+            } else {
+                for (i, result) in web.iter().enumerate().take(5) {
+                    let title = result
+                        .get("title")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("No Title");
+                    let description = result
+                        .get("description")
+                        .and_then(|d| d.as_str())
+                        .unwrap_or("");
+                    let url = result.get("url").and_then(|u| u.as_str()).unwrap_or("");
+
+                    output.push_str(&format!("{}. **{}**\n", i + 1, title));
+                    output.push_str(&format!("   - Snippet: {}\n", description));
+                    output.push_str(&format!("   - URL: {}\n\n", url));
+                }
+            }
+        } else {
+            output.push_str("Failed to parse search results.\n");
+        }
+
+        output
     }
 }
 
@@ -162,61 +294,23 @@ impl GroqApiClient {
         &self,
         model: &str,
         messages: &[Message],
-        stream: bool,
-    ) -> Result<String, reqwest::Error> {
-        if stream {
-            self.chat_completion_stream(model, messages).await
-        } else {
-            self.chat_completion_non_stream(model, messages).await
-        }
-    }
-
-    async fn chat_completion_stream(
-        &self,
-        model: &str,
-        messages: &[Message],
-    ) -> Result<String, reqwest::Error> {
-        let request = ChatRequest {
-            model: model.to_string(),
-            messages: messages.to_vec(),
-            stream: true,
-        };
-
-        let mut response = self
-            .client
-            .post(GROQ_API_URL)
-            .header(AUTHORIZATION, format!("Bearer {}", self.api_key))
-            .header(CONTENT_TYPE, "application/json")
-            .json(&request)
-            .send()
-            .await?;
-
-        let mut full_response = String::new();
-
-        while let Some(chunk) = response.chunk().await? {
-            let chunk_str = String::from_utf8_lossy(&chunk);
-            for line in chunk_str.lines() {
-                if let Some(content) = self.parse_stream_line(line) {
-                    print!("{}", content);
-                    io::stdout().flush().unwrap();
-                    full_response.push_str(&content);
-                }
-            }
-        }
-
-        println!();
-        Ok(full_response)
+        tools: Option<Vec<ToolDefinition>>,
+    ) -> Result<Message, reqwest::Error> {
+        self.chat_completion_non_stream(model, messages, tools)
+            .await
     }
 
     async fn chat_completion_non_stream(
         &self,
         model: &str,
         messages: &[Message],
-    ) -> Result<String, reqwest::Error> {
+        tools: Option<Vec<ToolDefinition>>,
+    ) -> Result<Message, reqwest::Error> {
         let request = ChatRequest {
             model: model.to_string(),
             messages: messages.to_vec(),
             stream: false,
+            tools,
         };
 
         let response = self
@@ -232,27 +326,14 @@ impl GroqApiClient {
         Ok(chat_response
             .choices
             .first()
-            .map(|c| c.message.content.clone())
-            .unwrap_or_default())
+            .map(|c| c.message.clone())
+            .unwrap_or_else(|| Message::assistant("")))
     }
 
-    fn parse_stream_line(&self, line: &str) -> Option<String> {
-        let line = line.strip_prefix("data: ").unwrap_or(line);
-
-        if line.is_empty() || line == "[DONE]" {
-            return None;
-        }
-
-        if let Ok(chunk_data) = serde_json::from_str::<StreamChunk>(line) {
-            if let Some(choice) = chunk_data.choices.first() {
-                if !choice.delta.content.is_empty() {
-                    return Some(choice.delta.content.clone());
-                }
-            }
-        }
-
-        None
-    }
+    // Stream mode is trickier with tool calls, for now let's focus on non-stream for search
+    // or handle it by disabling stream when tool calls are expected.
+    // Given the prompt "ai สามารถตัดสินใจได้ด้วยตัวเอง", we'll use non-stream for the agentic loop
+    // to keep it robust, and maybe allow stream for the final response.
 }
 
 // ============================================================================
@@ -430,10 +511,6 @@ impl ConversationManager {
 
     fn add_user_message(&mut self, content: &str) {
         self.messages.push(Message::user(content));
-    }
-
-    fn add_assistant_message(&mut self, content: &str) {
-        self.messages.push(Message::assistant(content));
     }
 
     fn remove_last_message(&mut self) {
@@ -790,6 +867,10 @@ impl UserInterface {
         println!("● {}\n", response);
     }
 
+    fn print_step(step: &str, color: Color) {
+        println!("{} {}...", "\n*".color(color), step.color(color));
+    }
+
     fn print_error(error: &str) {
         eprintln!("\nError: {}", error);
     }
@@ -829,15 +910,17 @@ impl CommandHandler {
 
 struct ChatApplication {
     api_client: GroqApiClient,
+    brave_client: BraveSearchClient,
     model_manager: ModelManager,
     conversation_manager: ConversationManager,
     reader: tokio::io::BufReader<tokio::io::Stdin>,
 }
 
 impl ChatApplication {
-    fn new(api_key: String) -> Self {
+    fn new(groq_key: String, brave_key: String) -> Self {
         Self {
-            api_client: GroqApiClient::new(api_key),
+            api_client: GroqApiClient::new(groq_key),
+            brave_client: BraveSearchClient::new(brave_key),
             model_manager: ModelManager::new(),
             conversation_manager: ConversationManager::new(),
             reader: tokio::io::BufReader::new(tokio::io::stdin()),
@@ -965,35 +1048,111 @@ impl ChatApplication {
     async fn process_message(&mut self, content: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.conversation_manager.add_user_message(content);
 
-        if !self.conversation_manager.is_stream_mode() {
-            UserInterface::print_thinking();
-        }
+        let blue = Color::TrueColor {
+            r: 122,
+            g: 162,
+            b: 247,
+        };
+        let green = Color::TrueColor {
+            r: 166,
+            g: 227,
+            b: 161,
+        };
 
-        let result = self
-            .api_client
-            .chat_completion(
-                self.model_manager.get_current_model(),
-                self.conversation_manager.get_messages(),
-                self.conversation_manager.is_stream_mode(),
-            )
-            .await;
+        UserInterface::print_thinking();
 
-        match result {
-            Ok(response) => {
-                if !self.conversation_manager.is_stream_mode() {
-                    UserInterface::print_assistant_response(&response);
-                } else {
-                    println!();
+        loop {
+            let tools = vec![self.get_brave_search_tool()];
+
+            let result = self
+                .api_client
+                .chat_completion(
+                    self.model_manager.get_current_model(),
+                    self.conversation_manager.get_messages(),
+                    Some(tools),
+                )
+                .await;
+
+            match result {
+                Ok(response_msg) => {
+                    self.conversation_manager
+                        .messages
+                        .push(response_msg.clone());
+
+                    if let Some(tool_calls) = &response_msg.tool_calls {
+                        for tool_call in tool_calls {
+                            if tool_call.function.name == "brave_search" {
+                                let args: serde_json::Value =
+                                    serde_json::from_str(&tool_call.function.arguments)?;
+                                let query = args["query"].as_str().unwrap_or("");
+
+                                UserInterface::print_step(
+                                    &format!("Searching Brave for '{}'", query),
+                                    blue,
+                                );
+
+                                match self.brave_client.search(query).await {
+                                    Ok(search_results) => {
+                                        UserInterface::print_step(
+                                            "Reasoning with search results",
+                                            green,
+                                        );
+                                        self.conversation_manager
+                                            .messages
+                                            .push(Message::tool(&search_results, &tool_call.id));
+                                    }
+                                    Err(e) => {
+                                        UserInterface::print_error(&format!(
+                                            "Search failed: {}",
+                                            e
+                                        ));
+                                        self.conversation_manager.messages.push(Message::tool(
+                                            "Error: Search failed. Please answer without search.",
+                                            &tool_call.id,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        // Continue loop to let AI process results
+                        continue;
+                    } else {
+                        // No more tool calls, we have final response
+                        if let Some(final_content) = &response_msg.content {
+                            UserInterface::print_assistant_response(final_content);
+                        }
+                        break;
+                    }
                 }
-                self.conversation_manager.add_assistant_message(&response);
-            }
-            Err(e) => {
-                UserInterface::print_error(&e.to_string());
-                self.conversation_manager.remove_last_message();
+                Err(e) => {
+                    UserInterface::print_error(&e.to_string());
+                    self.conversation_manager.remove_last_message();
+                    break;
+                }
             }
         }
 
         Ok(())
+    }
+
+    fn get_brave_search_tool(&self) -> ToolDefinition {
+        ToolDefinition {
+            r#type: "function".to_string(),
+            function: ToolFunction {
+                name: "brave_search".to_string(),
+                description: "Search the web for up-to-date information, news, current events, and general knowledge. Use this for questions that require real-time data or when you need to verify facts.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query to look up on the web."
+                        }
+                    },
+                    "required": ["query"]
+                }),
+            },
+        }
     }
 }
 
@@ -1005,8 +1164,8 @@ impl ChatApplication {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    let api_key = ConfigManager::get_or_prompt_api_key();
-    let mut app = ChatApplication::new(api_key);
+    let (groq_key, brave_key) = ConfigManager::get_or_prompt_api_keys();
+    let mut app = ChatApplication::new(groq_key, brave_key);
     app.run().await?;
 
     Ok(())
