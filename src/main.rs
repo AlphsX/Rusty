@@ -6,6 +6,12 @@ use std::path::PathBuf;
 use colored::*;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+use termimad::crossterm::style::Color as CrosstermColor;
+use termimad::MadSkin;
 use tokio::io::AsyncBufReadExt;
 
 // ============================================================================
@@ -864,7 +870,84 @@ impl UserInterface {
     }
 
     fn print_assistant_response(response: &str) {
-        println!("● {}\n", response);
+        let skin = Self::get_skin();
+        println!(); // Spacing before response
+        print!("● ");
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+
+        // Initialize syntect
+        let ps = SyntaxSet::load_defaults_newlines();
+        let ts = ThemeSet::load_defaults();
+        let theme = &ts.themes["base16-ocean.dark"]; // A good dark theme
+
+        // Simple markdown splitter for code blocks
+        let parts: Vec<&str> = response.split("```").collect();
+
+        for (i, part) in parts.iter().enumerate() {
+            if i % 2 == 0 {
+                // Text part
+                if !part.trim().is_empty() {
+                    skin.print_text(part);
+                }
+            } else {
+                // Code block part
+                let mut lines = part.lines();
+                let lang = lines.next().unwrap_or("").trim();
+                let code = lines.collect::<Vec<&str>>().join("\n");
+
+                if code.trim().is_empty() {
+                    continue;
+                }
+
+                let syntax = ps
+                    .find_syntax_by_token(lang)
+                    .unwrap_or_else(|| ps.find_syntax_plain_text());
+
+                let mut h = HighlightLines::new(syntax, theme);
+
+                // Add a background box specifically for the code block (visual separation)
+                // Note: termimad has code block styling, but we are bypassing it for syntax highlighting.
+                // We can use crossterm to set a background color if we want, but syntect handles coloring.
+                // Let's print a separator or just indent.
+                println!();
+
+                for line in LinesWithEndings::from(&code) {
+                    let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
+                    let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
+                    print!("   {}", escaped); // Indent code
+                }
+                println!("\x1b[0m"); // Reset colors
+                println!();
+            }
+        }
+
+        println!(); // Spacing after response
+    }
+
+    fn get_skin() -> MadSkin {
+        let mut skin = MadSkin::default();
+
+        // Use a clean, modern look similar to Claude Code
+        let orange = CrosstermColor::AnsiValue(208);
+        let dark_grey = CrosstermColor::AnsiValue(236);
+        let light_yellow = CrosstermColor::AnsiValue(229);
+        let white = CrosstermColor::White;
+        let grey = CrosstermColor::Grey;
+
+        skin.set_headers_fg(orange);
+        skin.bold.set_fg(white);
+        skin.italic.set_fg(grey);
+
+        // Code block styling
+        skin.code_block.set_bg(dark_grey);
+        skin.code_block.set_fg(white);
+
+        // Inline code styling
+        // skin.inline_code.set_bg(dark_grey); // Removed background
+        skin.inline_code.set_fg(light_yellow);
+
+        skin
     }
 
     fn print_step(step: &str, color: Color) {
