@@ -14,9 +14,7 @@ use termimad::crossterm::style::Color as CrosstermColor;
 use termimad::MadSkin;
 use tokio::io::AsyncBufReadExt;
 
-// ============================================================================
 // Constants
-// ============================================================================
 
 const GROQ_API_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 const MODELS: &[&str] = &[
@@ -25,9 +23,7 @@ const MODELS: &[&str] = &[
     "moonshotai/kimi-k2-instruct-0905",
 ];
 
-// ============================================================================
 // Data Models
-// ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Message {
@@ -70,6 +66,10 @@ impl Message {
 
     fn assistant(content: &str) -> Self {
         Self::new("assistant", content)
+    }
+
+    fn system(content: &str) -> Self {
+        Self::new("system", content)
     }
 
     fn tool(content: &str, id: &str) -> Self {
@@ -115,9 +115,8 @@ struct Choice {
 }
 
 #[derive(Debug, Deserialize)]
-// ============================================================================
+
 // Configuration Manager
-// ============================================================================
 
 struct ConfigManager;
 
@@ -212,9 +211,7 @@ impl ConfigManager {
     }
 }
 
-// ============================================================================
 // Brave Search Client
-// ============================================================================
 
 struct BraveSearchClient {
     api_key: String,
@@ -279,9 +276,7 @@ impl BraveSearchClient {
     }
 }
 
-// ============================================================================
 // API Client
-// ============================================================================
 
 struct GroqApiClient {
     api_key: String,
@@ -312,39 +307,65 @@ impl GroqApiClient {
         messages: &[Message],
         tools: Option<Vec<ToolDefinition>>,
     ) -> Result<Message, reqwest::Error> {
+        let mut final_messages = Vec::new();
+        final_messages.push(Message::system("You are a helpful AI assistant with access to real-time information via the `brave_search` tool. You can use it to find up-to-date information. Do not attempt to use any tools that are not listed here. Specifically, do NOT use a tool named `open` or `read_file`; they do not exist."));
+        final_messages.extend_from_slice(messages);
+
         let request = ChatRequest {
             model: model.to_string(),
-            messages: messages.to_vec(),
+            messages: final_messages,
             stream: false,
             tools,
         };
 
-        let response = self
-            .client
-            .post(GROQ_API_URL)
-            .header(AUTHORIZATION, format!("Bearer {}", self.api_key))
-            .header(CONTENT_TYPE, "application/json")
-            .json(&request)
-            .send()
-            .await?;
+        let mut retries = 0;
+        loop {
+            let response = self
+                .client
+                .post(GROQ_API_URL)
+                .header(AUTHORIZATION, format!("Bearer {}", self.api_key))
+                .header(CONTENT_TYPE, "application/json")
+                .json(&request)
+                .send()
+                .await?;
 
-        let chat_response: ChatResponse = response.json().await?;
-        Ok(chat_response
-            .choices
-            .first()
-            .map(|c| c.message.clone())
-            .unwrap_or_else(|| Message::assistant("")))
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                if retries >= 3 {
+                    let body_text = response.text().await?;
+                    eprintln!("Rate limit exceeded after retries. Body: {}", body_text);
+                    panic!("Groq API Rate Limit Exceeded");
+                }
+                retries += 1;
+                eprintln!(
+                    "Rate limit hit, retrying in 2 seconds... (Attempt {}/3)",
+                    retries
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                continue;
+            }
+
+            let body_text = response.text().await?;
+            let chat_response: ChatResponse = match serde_json::from_str(&body_text) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Failed to parse API response: {}", e);
+                    eprintln!("Response body: {}", body_text);
+                    panic!("Groq API Error: {}", e);
+                }
+            };
+            return Ok(chat_response
+                .choices
+                .first()
+                .map(|c| c.message.clone())
+                .unwrap_or_else(|| Message::assistant("")));
+        }
     }
 
     // Stream mode is trickier with tool calls, for now let's focus on non-stream for search
     // or handle it by disabling stream when tool calls are expected.
-    // Given the prompt "ai สามารถตัดสินใจได้ด้วยตัวเอง", we'll use non-stream for the agentic loop
-    // to keep it robust, and maybe allow stream for the final response.
 }
 
-// ============================================================================
 // Model Manager
-// ============================================================================
 
 struct ModelManager {
     selected_model: String,
@@ -498,9 +519,7 @@ impl ModelManager {
     }
 }
 
-// ============================================================================
 // Conversation Manager
-// ============================================================================
 
 struct ConversationManager {
     messages: Vec<Message>,
@@ -540,9 +559,7 @@ impl ConversationManager {
     }
 }
 
-// ============================================================================
 // User Interface
-// ============================================================================
 
 struct UserInterface;
 
@@ -726,7 +743,7 @@ impl UserInterface {
 
     fn print_instructions() {
         println!("Type your message and press Enter.");
-        println!("Commands: /quit, /stream, /clear, /model\n");
+        println!("Commands: /exit, /stream, /clear, /model\n");
     }
 
     fn print_help() {
@@ -906,10 +923,7 @@ impl UserInterface {
 
                 let mut h = HighlightLines::new(syntax, theme);
 
-                // Add a background box specifically for the code block (visual separation)
                 // Note: termimad has code block styling, but we are bypassing it for syntax highlighting.
-                // We can use crossterm to set a background color if we want, but syntect handles coloring.
-                // Let's print a separator or just indent.
                 println!();
 
                 for line in LinesWithEndings::from(&code) {
@@ -928,7 +942,6 @@ impl UserInterface {
     fn get_skin() -> MadSkin {
         let mut skin = MadSkin::default();
 
-        // Use a clean, modern look similar to Claude Code
         let orange = CrosstermColor::AnsiValue(208);
         let dark_grey = CrosstermColor::AnsiValue(236);
         let light_yellow = CrosstermColor::AnsiValue(229);
@@ -944,7 +957,6 @@ impl UserInterface {
         skin.code_block.set_fg(white);
 
         // Inline code styling
-        // skin.inline_code.set_bg(dark_grey); // Removed background
         skin.inline_code.set_fg(light_yellow);
 
         skin
@@ -959,9 +971,7 @@ impl UserInterface {
     }
 }
 
-// ============================================================================
 // Command Handler
-// ============================================================================
 
 enum Command {
     Quit,
@@ -987,9 +997,7 @@ impl CommandHandler {
     }
 }
 
-// ============================================================================
 // Chat Application
-// ============================================================================
 
 struct ChatApplication {
     api_client: GroqApiClient,
@@ -1145,7 +1153,7 @@ impl ChatApplication {
         UserInterface::print_thinking();
 
         loop {
-            let tools = vec![self.get_brave_search_tool()];
+            let tools = vec![self.get_brave_search_tool(), self.get_open_tool()];
 
             let result = self
                 .api_client
@@ -1195,6 +1203,39 @@ impl ChatApplication {
                                         ));
                                     }
                                 }
+                            } else if tool_call.function.name == "open" {
+                                let args: serde_json::Value =
+                                    serde_json::from_str(&tool_call.function.arguments)?;
+                                let url = args
+                                    .get("id")
+                                    .or_else(|| args.get("url"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("");
+
+                                UserInterface::print_step(
+                                    &format!("Checking content from '{}'", url),
+                                    blue,
+                                );
+
+                                // Redirect to brave search as a fallback for now
+                                match self.brave_client.search(url).await {
+                                    Ok(search_results) => {
+                                        UserInterface::print_step("Analyzing page content", green);
+                                        self.conversation_manager
+                                            .messages
+                                            .push(Message::tool(&search_results, &tool_call.id));
+                                    }
+                                    Err(e) => {
+                                        UserInterface::print_error(&format!(
+                                            "Failed to read content: {}",
+                                            e
+                                        ));
+                                        self.conversation_manager.messages.push(Message::tool(
+                                            "Error: Failed to read page content. Please try searching instead.",
+                                            &tool_call.id,
+                                        ));
+                                    }
+                                }
                             }
                         }
                         // Continue loop to let AI process results
@@ -1237,11 +1278,29 @@ impl ChatApplication {
             },
         }
     }
+
+    fn get_open_tool(&self) -> ToolDefinition {
+        ToolDefinition {
+            r#type: "function".to_string(),
+            function: ToolFunction {
+                name: "open".to_string(),
+                description: "Open a URL to read its content.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "The URL or ID of the resource to open."
+                        }
+                    },
+                    "required": ["id"]
+                }),
+            },
+        }
+    }
 }
 
-// ============================================================================
 // Main Entry Point
-// ============================================================================
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
