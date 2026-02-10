@@ -1123,6 +1123,18 @@ impl ChatApplication {
                 {
                     return Ok(false);
                 }
+
+                let orange = Color::TrueColor {
+                    r: 255,
+                    g: 140,
+                    b: 0,
+                };
+                println!(
+                    "\n{} {}\n",
+                    "Active Model:".color(orange).bold(),
+                    self.model_manager.get_current_model().white()
+                );
+
                 Ok(true)
             }
             Command::Help => {
