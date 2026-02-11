@@ -895,8 +895,16 @@ impl UserInterface {
 
         // Initialize syntect
         let ps = SyntaxSet::load_defaults_newlines();
-        let ts = ThemeSet::load_defaults();
-        let theme = &ts.themes["base16-ocean.dark"]; // A good dark theme
+        let mut ts = ThemeSet::load_defaults();
+
+        // Try to load custom Monokai theme
+        let theme_path = "Monokai.tmTheme";
+        let theme = if let Ok(t) = ThemeSet::get_theme(theme_path) {
+            ts.themes.insert("monokai-custom".to_string(), t);
+            &ts.themes["monokai-custom"]
+        } else {
+            &ts.themes["base16-mocha.dark"]
+        };
 
         // Simple markdown splitter for code blocks
         let parts: Vec<&str> = response.split("```").collect();
@@ -923,15 +931,27 @@ impl UserInterface {
 
                 let mut h = HighlightLines::new(syntax, theme);
 
-                // Note: termimad has code block styling, but we are bypassing it for syntax highlighting.
                 println!();
+                let gray = "\x1b[38;2;100;100;100m";
+                let reset = "\x1b[0m";
+                println!(
+                    "   {}╭───────────────────────────────────────────────────╮{}",
+                    gray, reset
+                );
 
                 for line in LinesWithEndings::from(&code) {
                     let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
                     let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
-                    print!("   {}", escaped); // Indent code
+                    print!("   {}│{} {}", gray, reset, escaped); // Indent + Vertical bar
                 }
-                println!("\x1b[0m"); // Reset colors
+
+                if !code.ends_with('\n') {
+                    println!();
+                }
+                println!(
+                    "   {}╰───────────────────────────────────────────────────╯{}",
+                    gray, reset
+                );
                 println!();
             }
         }

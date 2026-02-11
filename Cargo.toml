@@ -4,12 +4,12 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-reqwest = { version = "0.12.28", features = ["json", "stream"] }
+reqwest = { version = "0.13", features = ["json", "stream", "query"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 dotenvy = "0.15"
-colored = "2.2.0"
-rand = "0.9"
+colored = "3.1"
+rand = "0.10"
 termimad = "0.34"
 syntect = "5.0"
